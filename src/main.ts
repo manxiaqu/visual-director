@@ -1,14 +1,16 @@
 import { resolve } from 'node:path'
 import { plan } from './planner.js'
+import { refine } from './refiner.js'
 import { generateImage } from './image-generator.js'
 import { createRunDir, saveImage, saveJson, saveText } from './storage.js'
 import { isUnsupported } from './types.js'
 import type { GenerationResult } from './types.js'
 
 function printUsage(): void {
-  console.error('Usage: npm start "<你的图片需求>" [--image]')
-  console.error('示例: npm start "生成一个美女"            # 只产出 Plan + Prompt，不出图')
-  console.error('示例: npm start "生成一个美女" --image    # 完整流程，调用即梦出图')
+  console.error('Usage: npm start "<你的图片需求>" [-- --image]')
+  console.error('示例: npm start "生成一个美女"               # 只产出 Plan + Prompt，不出图')
+  console.error('示例: npm start "生成一个美女" -- --image    # 完整流程，调用即梦出图')
+  console.error('注意: 通过 npm 传 --image 必须加 `--` 分隔，否则会被 npm 吞掉')
 }
 
 interface Args {
@@ -52,24 +54,40 @@ async function main(): Promise<void> {
 
   console.log('\n[main] Visual Plan:')
   console.log(JSON.stringify(result.plan, null, 2))
-  console.log('\n[main] 优化后 Prompt:')
+  console.log('\n[main] Planner 原始 Prompt:')
   console.log(result.prompt)
+
+  console.log('\n[main] 调用 Refiner（DeepSeek）润色措辞...')
+  const finalPrompt = await refine(result.prompt)
+  console.log('\n[main] 润色后 Prompt:')
+  console.log(finalPrompt)
+
+  if (result.negativePrompt) {
+    console.log('\n[main] Negative Prompt:')
+    console.log(result.negativePrompt)
+  }
 
   const createdAt = new Date().toISOString()
   const dir = createRunDir()
   saveJson(dir, 'visual-plan.json', result.plan)
-  saveText(dir, 'prompt.txt', result.prompt)
+  saveText(dir, 'prompt.raw.txt', result.prompt)
+  saveText(dir, 'prompt.txt', finalPrompt)
+  if (result.negativePrompt) {
+    saveText(dir, 'negative-prompt.txt', result.negativePrompt)
+  }
 
   const meta: GenerationResult = {
     userInput,
     createdAt,
     plan: result.plan,
-    prompt: result.prompt,
+    prompt: finalPrompt,
+    rawPrompt: result.prompt,
+    negativePrompt: result.negativePrompt,
   }
 
   if (withImage) {
     console.log('\n[main] 调用即梦生成图片...')
-    const image = await generateImage(result.prompt)
+    const image = await generateImage(finalPrompt, result.negativePrompt)
     meta.imagePath = saveImage(dir, image.bytes)
     meta.sourceUrl = image.sourceUrl
     meta.contentType = image.contentType

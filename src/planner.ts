@@ -19,15 +19,22 @@ const client = new OpenAI({
 })
 
 const PLAN_FIELDS: Array<keyof VisualPlan> = [
+  'archetype',
   'age',
   'gender',
   'temperament',
-  'face',
+  'appearance',
   'hair',
   'clothes',
+  'expression',
+  'pose',
   'scene',
-  'camera',
+  'environment',
   'lighting',
+  'composition',
+  'mood',
+  'style',
+  'visual_keywords',
 ]
 
 function isUnsupportedShape(obj: Record<string, unknown>): boolean {
@@ -64,8 +71,18 @@ function validate(obj: unknown): PlannerResult {
   if (typeof planRecord.age !== 'number') {
     throw new Error('plan.age 必须是 number')
   }
+  if (!Array.isArray(planRecord.visual_keywords)) {
+    throw new Error('plan.visual_keywords 必须是数组')
+  }
 
-  return { plan: planRecord as unknown as VisualPlan, prompt: prompt.trim() } satisfies PlannerOutput
+  // negative_prompt 非核心结构，缺失则按空串兜底，不触发重试
+  const negativePrompt = typeof record.negative_prompt === 'string' ? record.negative_prompt.trim() : ''
+
+  return {
+    plan: planRecord as unknown as VisualPlan,
+    prompt: prompt.trim(),
+    negativePrompt,
+  } satisfies PlannerOutput
 }
 
 interface ChatMessage {

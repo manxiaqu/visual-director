@@ -25,14 +25,19 @@ export interface GeneratedImage {
   sourceUrl: string
 }
 
-export async function generateImage(prompt: string): Promise<GeneratedImage> {
+export async function generateImage(prompt: string, negativePrompt = ''): Promise<GeneratedImage> {
   ensureConfigured()
 
+  const input: Record<string, unknown> = {
+    prompt,
+    image_size: config.fal.imageSize,
+  }
+  if (negativePrompt.trim() !== '') {
+    input.negative_prompt = negativePrompt.trim()
+  }
+
   const { data } = await fal.subscribe(config.fal.model, {
-    input: {
-      prompt,
-      image_size: config.fal.imageSize,
-    },
+    input,
     logs: false,
   }) as { data: FalImageResult }
 
