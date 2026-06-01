@@ -1,6 +1,32 @@
+# 依赖（node 安装目录）
 node_modules/
+
+# 构建产物
 dist/
-.env
+
+# 输出文件夹（每次生成的图片与中间产物）
 outputs/
+
+# 环境变量与敏感信息（.env.example 作为模板保留，不忽略）
+.env
+.env.local
+.env.*.local
+!.env.example
+# 各类凭证 / 密钥文件
+*.key
+*.pem
+*.p12
+credentials.json
+
+# 临时 / 测试残留
+tmp
+tmp/
+*.tmp
+
+# 日志
 *.log
+
+# 系统 / 编辑器
 .DS_Store
+.idea/
+*.swp
