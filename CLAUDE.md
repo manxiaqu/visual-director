@@ -8,7 +8,7 @@ Visual Director 是一个将模糊的图片生成需求转化为高质量视觉�
 
 解决方式：通过 Agent 把模糊需求结构化为视觉方案，再生成高质量 Prompt，最终调用图片模型产出图片。
 
-详见 [Visual_Planner_Agent_v0.1_Final.md](Visual_Planner_Agent_v0.1_Final.md)。
+详见本地设计文档 `tmpdocs/Visual_Planner_Agent_v0.1_Final.md`（保留本地，未纳入仓库）。
 
 ---
 

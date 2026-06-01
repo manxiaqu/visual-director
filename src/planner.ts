@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import OpenAI from 'openai'
 import { config } from './config.js'
-import type { PlannerResult, PlannerOutput, UnsupportedOutput, VisualPlan } from './types.js'
+import { debugLLMCall } from './debug.js'
+import type { PlannerResult, PlannerOutput, UnsupportedOutput, PlanCore } from './types.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SYSTEM_PROMPT_PATH = join(__dirname, 'prompts', 'planner.system.md')
@@ -18,14 +19,16 @@ const client = new OpenAI({
   baseURL: config.deepseek.baseURL,
 })
 
-const PLAN_FIELDS: Array<keyof VisualPlan> = [
+// 注意：五官（appearance）与发型（hair）已交给规则采样器，prompt 交给 Builder，
+// 故 planner 不再产出这些字段，校验里也不要求它们。
+const PLAN_FIELDS: Array<keyof PlanCore> = [
   'archetype',
+  'occupation',
   'age',
   'gender',
   'temperament',
-  'appearance',
-  'hair',
   'clothes',
+  'clothes_color',
   'expression',
   'pose',
   'scene',
@@ -54,12 +57,8 @@ function validate(obj: unknown): PlannerResult {
   }
 
   const plan = record.plan
-  const prompt = record.prompt
   if (!plan || typeof plan !== 'object') {
     throw new Error('缺少合法的 plan 字段')
-  }
-  if (typeof prompt !== 'string' || prompt.trim() === '') {
-    throw new Error('缺少合法的 prompt 字段')
   }
 
   const planRecord = plan as Record<string, unknown>
@@ -75,13 +74,8 @@ function validate(obj: unknown): PlannerResult {
     throw new Error('plan.visual_keywords 必须是数组')
   }
 
-  // negative_prompt 非核心结构，缺失则按空串兜底，不触发重试
-  const negativePrompt = typeof record.negative_prompt === 'string' ? record.negative_prompt.trim() : ''
-
   return {
-    plan: planRecord as unknown as VisualPlan,
-    prompt: prompt.trim(),
-    negativePrompt,
+    plan: planRecord as unknown as PlanCore,
   } satisfies PlannerOutput
 }
 
@@ -90,20 +84,7 @@ interface ChatMessage {
   content: string
 }
 
-// 设 DEBUG_PROMPT=1 时，打印实际发给 DeepSeek 的完整 messages，便于针对性调 prompt
-function debugPrintMessages(messages: ChatMessage[]): void {
-  if (!process.env.DEBUG_PROMPT) return
-  console.log('\n========== 发送给 DeepSeek 的 messages ==========')
-  console.log('model:', config.deepseek.model, '| temperature: 0.7 | response_format: json_object')
-  for (const msg of messages) {
-    console.log(`\n----- [${msg.role}] -----`)
-    console.log(msg.content)
-  }
-  console.log('========== messages 结束 ==========\n')
-}
-
-async function callDeepSeek(messages: ChatMessage[]): Promise<string> {
-  debugPrintMessages(messages)
+async function callDeepSeek(label: string, messages: ChatMessage[]): Promise<string> {
   const completion = await client.chat.completions.create({
     model: config.deepseek.model,
     response_format: { type: 'json_object' },
@@ -114,6 +95,13 @@ async function callDeepSeek(messages: ChatMessage[]): Promise<string> {
   if (!content) {
     throw new Error('DeepSeek 返回空内容')
   }
+  // debug 模式下打印本次调用的完整输入与输出
+  debugLLMCall(
+    label,
+    { model: config.deepseek.model, temperature: 0.7, response_format: 'json_object' },
+    messages,
+    content,
+  )
   return content
 }
 
@@ -127,14 +115,16 @@ function parseAndValidate(raw: string): PlannerResult {
   return validate(parsed)
 }
 
-export async function plan(userInput: string): Promise<PlannerResult> {
+export async function plan(userInput: string, variationHint?: string): Promise<PlannerResult> {
   const systemPrompt = loadSystemPrompt()
+  // batch 内每张传入不同的 variationHint，促使 Planner 轮换职业子类型与服装配色，拉开差异
+  const userContent = variationHint ? `${userInput}\n\n${variationHint}` : userInput
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: userInput },
+    { role: 'user', content: userContent },
   ]
 
-  const firstRaw = await callDeepSeek(messages)
+  const firstRaw = await callDeepSeek('Planner', messages)
   try {
     return parseAndValidate(firstRaw)
   } catch (firstErr) {
@@ -149,7 +139,7 @@ export async function plan(userInput: string): Promise<PlannerResult> {
           '请严格按 system prompt 的格式只返回一个 JSON 对象，不要任何额外文字。',
       },
     ]
-    const retryRaw = await callDeepSeek(retryMessages)
+    const retryRaw = await callDeepSeek('Planner（重试）', retryMessages)
     return parseAndValidate(retryRaw)
   }
 }

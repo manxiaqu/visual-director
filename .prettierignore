@@ -1,0 +1,8 @@
+node_modules/
+dist/
+outputs/
+docs/samples/
+package-lock.json
+# prompt 文件与文档保持人工排版，不交给 Prettier
+*.md
+src/prompts/

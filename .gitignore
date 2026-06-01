@@ -4,6 +4,9 @@ node_modules/
 # 构建产物
 dist/
 
+# 打包/导出产物（如样图 zip，体积大，不进仓库）
+*.zip
+
 # 输出文件夹（每次生成的图片与中间产物）
 outputs/
 
@@ -30,3 +33,6 @@ tmp/
 .DS_Store
 .idea/
 *.swp
+
+# 本地设计 / 规划文档（保留本地，不进公开仓库）
+tmpdocs/

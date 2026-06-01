@@ -1,15 +1,37 @@
 {
   "name": "visual-director",
   "version": "0.1.0",
-  "description": "Visual Planner Agent v0.1 — turn vague image requests into structured visual plans and high-quality Chinese prompts for Jimeng.",
+  "description": "Portrait Director Agent — 把一句话需求转成结构化的人物身份/职业/场景/风格方案与高质量中文 Prompt，再调字节即梦出图。",
   "author": "manxiaqu",
   "license": "MIT",
   "private": true,
   "type": "module",
+  "homepage": "https://github.com/manxiaqu/visual-director#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/manxiaqu/visual-director.git"
+  },
+  "bugs": {
+    "url": "https://github.com/manxiaqu/visual-director/issues"
+  },
+  "keywords": [
+    "ai",
+    "image-generation",
+    "portrait",
+    "agent",
+    "deepseek",
+    "seedream",
+    "jimeng",
+    "prompt-engineering",
+    "typescript"
+  ],
   "scripts": {
     "start": "tsx src/main.ts",
     "smoke:image": "tsx scripts/smoke-image.ts",
+    "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "build": "tsc"
   },
   "dependencies": {
@@ -19,6 +41,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
+    "prettier": "^3.4.2",
     "tsx": "^4.22.3",
     "typescript": "^6.0.3"
   }
