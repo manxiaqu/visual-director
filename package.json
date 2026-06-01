@@ -2,6 +2,8 @@
   "name": "visual-director",
   "version": "0.1.0",
   "description": "Visual Planner Agent v0.1 — turn vague image requests into structured visual plans and high-quality Chinese prompts for Jimeng.",
+  "author": "manxiaqu",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "scripts": {
