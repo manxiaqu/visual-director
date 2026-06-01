@@ -91,6 +91,12 @@ async function main(): Promise<void> {
     meta.imagePath = saveImage(dir, image.bytes)
     meta.sourceUrl = image.sourceUrl
     meta.contentType = image.contentType
+    meta.model = image.request.model
+    meta.seed = image.seed
+    // 完整保存「实际发送的请求参数」与「fal 返回的全部结果」，便于复现与排查
+    saveJson(dir, 'fal-request.json', image.request)
+    saveJson(dir, 'fal-response.json', image.response)
+    console.log('[main] fal 使用的 seed:', image.seed ?? '(返回未带 seed)')
   } else {
     console.log('\n[main] 跳过出图（如需出图，命令末尾加 --image）')
   }

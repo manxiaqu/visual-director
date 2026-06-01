@@ -17,12 +17,21 @@ interface FalImage {
 interface FalImageResult {
   images?: FalImage[]
   image?: FalImage
+  seed?: number
+}
+
+export interface FalRequest {
+  model: string
+  input: Record<string, unknown>
 }
 
 export interface GeneratedImage {
   bytes: Buffer
   contentType: string
   sourceUrl: string
+  request: FalRequest
+  response: unknown
+  seed?: number
 }
 
 export async function generateImage(prompt: string, negativePrompt = ''): Promise<GeneratedImage> {
@@ -56,5 +65,8 @@ export async function generateImage(prompt: string, negativePrompt = ''): Promis
     bytes: Buffer.from(arrayBuf),
     contentType: image.content_type ?? response.headers.get('content-type') ?? 'image/png',
     sourceUrl: image.url,
+    request: { model: config.fal.model, input },
+    response: data,
+    seed: typeof data.seed === 'number' ? data.seed : undefined,
   }
 }

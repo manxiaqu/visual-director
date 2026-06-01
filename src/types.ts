@@ -44,4 +44,6 @@ export interface GenerationResult {
   imagePath?: string
   sourceUrl?: string
   contentType?: string
+  model?: string
+  seed?: number
 }
