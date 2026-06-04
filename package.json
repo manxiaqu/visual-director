@@ -27,6 +27,13 @@
   ],
   "scripts": {
     "start": "tsx src/main.ts",
+    "batch:themes": "tsx scripts/batch-themes.ts",
+    "go": "tsx scripts/go.ts",
+    "daily": "tsx scripts/daily.ts",
+    "pick": "tsx scripts/pick.ts",
+    "pack": "tsx scripts/pack.ts",
+    "backfill:captions": "tsx scripts/backfill-captions.ts",
+    "migrate:outputs": "tsx scripts/migrate-outputs.ts",
     "smoke:image": "tsx scripts/smoke-image.ts",
     "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit",

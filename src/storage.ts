@@ -4,17 +4,20 @@ import { randomBytes } from 'node:crypto'
 
 const OUTPUTS_ROOT = resolve(process.cwd(), 'outputs')
 
-function timestampSlug(): string {
+function dateAndTime(): { date: string; time: string } {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
   const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
-  return `${date}_${time}`
+  return { date, time }
 }
 
+// 两级结构：outputs/<日期>/<时间_短hash>/。
+// 第一级按天归档，方便「每日一帖」产线按天取当天的图；第二级是单张的产物目录。
 export function createRunDir(): string {
+  const { date, time } = dateAndTime()
   const shortHash = randomBytes(3).toString('hex')
-  const dir = join(OUTPUTS_ROOT, `${timestampSlug()}_${shortHash}`)
+  const dir = join(OUTPUTS_ROOT, date, `${time}_${shortHash}`)
   mkdirSync(dir, { recursive: true })
   return dir
 }

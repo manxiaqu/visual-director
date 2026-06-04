@@ -45,8 +45,8 @@ export async function generateImage(prompt: string, negativePrompt = ''): Promis
     input.negative_prompt = negativePrompt.trim()
   }
 
-  // fal 调用与图片下载偶发瞬时网络超时（如 BodyTimeoutError），重试一次再放弃，避免一张拖垮整批
-  const maxAttempts = 2
+  // fal 调用与图片下载偶发瞬时失败/网络超时（如 BodyTimeoutError），重试再放弃，避免一张拖垮整批
+  const maxAttempts = 3
   let lastErr: unknown
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {

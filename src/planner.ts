@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import OpenAI from 'openai'
 import { config } from './config.js'
 import { debugLLMCall } from './debug.js'
-import type { PlannerResult, PlannerOutput, UnsupportedOutput, PlanCore } from './types.js'
+import type { PlannerResult, PlannerOutput, UnsupportedOutput, PlanCore, PinnedDims } from './types.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SYSTEM_PROMPT_PATH = join(__dirname, 'prompts', 'planner.system.md')
@@ -19,26 +19,51 @@ const client = new OpenAI({
   baseURL: config.deepseek.baseURL,
 })
 
-// 注意：五官（appearance）与发型（hair）已交给规则采样器，prompt 交给 Builder，
-// 故 planner 不再产出这些字段，校验里也不要求它们。
-const PLAN_FIELDS: Array<keyof PlanCore> = [
-  'archetype',
-  'occupation',
-  'age',
+// Planner 已瘦身为「意图层」：只识别主题 + 年龄等，视觉细节交给主题引擎/采样器，
+// prompt 交给 Builder。故只校验意图层字段。
+const PLAN_FIELDS: Array<keyof PlanCore> = ['theme', 'age', 'gender', 'mood', 'visual_keywords']
+
+// pinned 全维度（不丢用户信息）。宽松解析：模型多塞字段也不报错，按需取用。
+const PINNED_KEYS: Array<keyof PinnedDims> = [
+  'theme',
   'gender',
-  'temperament',
+  'age',
+  'hair',
+  'makeup',
   'clothes',
   'clothes_color',
-  'expression',
-  'pose',
   'scene',
-  'environment',
   'lighting',
-  'composition',
-  'mood',
+  'pose',
+  'expression',
+  'shot',
+  'angle',
   'style',
-  'visual_keywords',
 ]
+
+function extractPinned(record: Record<string, unknown>): PinnedDims {
+  const raw = record.pinned
+  if (!raw || typeof raw !== 'object') return {}
+  const src = raw as Record<string, unknown>
+  const pinned: PinnedDims = {}
+  for (const key of PINNED_KEYS) {
+    const v = src[key]
+    if (v === undefined || v === null || v === '') continue
+    if (key === 'age') {
+      if (typeof v === 'number') pinned.age = v
+    } else if (typeof v === 'string') {
+      pinned[key] = v as never
+    }
+  }
+  return pinned
+}
+
+// 抽取 extras：用户说了、但不归任何已知维度的碎信息。宽松：取字符串数组项。
+function extractExtras(record: Record<string, unknown>): string[] {
+  const raw = record.extras
+  if (!Array.isArray(raw)) return []
+  return raw.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim())
+}
 
 function isUnsupportedShape(obj: Record<string, unknown>): boolean {
   return obj.unsupported === true
@@ -76,6 +101,8 @@ function validate(obj: unknown): PlannerResult {
 
   return {
     plan: planRecord as unknown as PlanCore,
+    pinned: extractPinned(record),
+    extras: extractExtras(record),
   } satisfies PlannerOutput
 }
 
@@ -115,13 +142,11 @@ function parseAndValidate(raw: string): PlannerResult {
   return validate(parsed)
 }
 
-export async function plan(userInput: string, variationHint?: string): Promise<PlannerResult> {
+export async function plan(userInput: string): Promise<PlannerResult> {
   const systemPrompt = loadSystemPrompt()
-  // batch 内每张传入不同的 variationHint，促使 Planner 轮换职业子类型与服装配色，拉开差异
-  const userContent = variationHint ? `${userInput}\n\n${variationHint}` : userInput
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: userContent },
+    { role: 'user', content: userInput },
   ]
 
   const firstRaw = await callDeepSeek('Planner', messages)
