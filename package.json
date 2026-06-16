@@ -29,6 +29,7 @@
     "start": "tsx src/main.ts",
     "batch:themes": "tsx scripts/batch-themes.ts",
     "go": "tsx scripts/go.ts",
+    "same": "tsx scripts/same.ts",
     "daily": "tsx scripts/daily.ts",
     "pick": "tsx scripts/pick.ts",
     "pack": "tsx scripts/pack.ts",

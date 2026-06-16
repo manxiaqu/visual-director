@@ -110,3 +110,82 @@ export async function runOne(
   saveJson(dir, 'meta.json', meta)
   console.log(`[seed ${seed}] 产物目录:`, resolve(dir))
 }
+
+// 同一 prompt 批量出图：prompt 只构建一次，再用它调即梦 N 次。
+// 与 runOne（每张重采样 → 每张不同 prompt）相反——这里全批共用一个 plan/prompt，
+// 差异只来自即梦每次随机的图生成 seed（image-generator 不传 seed）。
+// 每张仍各自落一个 run dir（共享同一 plan/prompt），保证 pick/pack 不改也能按张扫描。
+export async function runSamePrompt(
+  userInput: string,
+  core: PlanCore,
+  theme: Theme,
+  pinned: PinnedDims,
+  extras: string[],
+  seed: number,
+  n: number,
+  withImage: boolean,
+  history: History,
+): Promise<{ prompt: string; dirs: string[] }> {
+  const sampledPlan = assemblePlan(core, theme, pinned, extras, seed, history)
+  const { plan: visualPlan, report: coherence } = await guardCoherence(sampledPlan, pinned)
+  if (!coherence.ok) {
+    console.log(`[same] 自洽修正:`, coherence.changes.map((c) => `${c.field} ${c.from}→${c.to}`).join(' | '))
+  }
+
+  // 全批共用一份采到的视觉骨架，只记一次历史
+  pushHistory(history, {
+    scene: visualPlan.scene,
+    shot: visualPlan.shot,
+    lighting: visualPlan.lighting,
+    pose: visualPlan.pose,
+    clothes: visualPlan.clothes,
+    hair: visualPlan.hair,
+  })
+
+  console.log(`\n[same] 人脸:`, JSON.stringify(visualPlan.face))
+  console.log(
+    `[same] 视觉骨架: 主题=${visualPlan.theme} | age=${visualPlan.age} | 发型=${visualPlan.hair} | 妆=${visualPlan.makeup}` +
+      ` | 场景=${visualPlan.scene} | 景别=${visualPlan.shot}/${visualPlan.angle} | 光线=${visualPlan.lighting}` +
+      ` | 姿势=${visualPlan.pose} | 服装=${visualPlan.clothes_color}的${visualPlan.clothes}` +
+      (extras.length ? ` | extras=${extras.join('/')}` : ''),
+  )
+
+  // prompt 只构建一次，全批共用
+  const prompt = await buildPrompt(visualPlan)
+  console.log(`[same] 唯一 Prompt:`, prompt)
+
+  const dirs: string[] = []
+  for (let i = 0; i < n; i++) {
+    const dir = createRunDir()
+    dirs.push(dir)
+    saveJson(dir, 'visual-plan.json', visualPlan)
+    saveJson(dir, 'coherence.json', coherence)
+    saveJson(dir, 'blueprint.json', { seed, index: i, face: visualPlan.face })
+    saveText(dir, 'prompt.txt', prompt)
+
+    const meta: GenerationResult = {
+      userInput,
+      createdAt: new Date().toISOString(),
+      seed,
+      plan: visualPlan,
+      prompt,
+    }
+
+    if (withImage) {
+      console.log(`[same] 出图 ${i + 1}/${n} ...`)
+      const image = await generateImage(prompt)
+      meta.imagePath = saveImage(dir, image.bytes)
+      meta.sourceUrl = image.sourceUrl
+      meta.contentType = image.contentType
+      meta.model = image.request.model
+      meta.imageSeed = image.seed
+      saveJson(dir, 'fal-request.json', image.request)
+      saveJson(dir, 'fal-response.json', image.response)
+      console.log(`[same] 第 ${i + 1}/${n} 张即梦 seed:`, image.seed ?? '(返回未带 seed)', '→', resolve(dir))
+    }
+
+    saveJson(dir, 'meta.json', meta)
+  }
+
+  return { prompt, dirs }
+}

@@ -9,7 +9,7 @@
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve, extname } from 'node:path'
-import { generateCaption } from '../src/caption.js'
+import { generateCaption, generatePromptCaption, captionToMarkdown } from '../src/caption.js'
 
 const OUTPUTS_ROOT = resolve(process.cwd(), 'outputs')
 const POSTS_ROOT = resolve(process.cwd(), 'posts')
@@ -103,14 +103,31 @@ async function main(): Promise<void> {
   ]
 
   console.log(`[pack] ${date} | 主题=${theme} | ${label} ${picked.length}/${data.items.length}`)
-  console.log('[pack] 调用 DeepSeek 生成文案...')
-  const caption = await generateCaption({
-    theme,
-    count: data.items.length,
-    picked: picked.length,
-    highlights,
-    note,
-  })
+
+  // --prompt-as-body：「同一 prompt 批量」模式的文案口径——
+  // 标题由 DeepSeek 起一个总结性名字，中英两版正文都直接是那条出图 prompt。
+  // 这组图共用同一 prompt，读第一张的 prompt.txt 即可。
+  const promptAsBody = args.includes('--prompt-as-body')
+  let caption
+  if (promptAsBody) {
+    const firstPromptPath = join(OUTPUTS_ROOT, date, picked[0].dir, 'prompt.txt')
+    const sharedPrompt = existsSync(firstPromptPath) ? readFileSync(firstPromptPath, 'utf-8').trim() : ''
+    if (!sharedPrompt) {
+      console.error('[pack] --prompt-as-body 但读不到 prompt.txt，无法把 prompt 当正文')
+      process.exit(1)
+    }
+    console.log('[pack] --prompt-as-body：调用 DeepSeek 起标题，正文 = 出图 prompt ...')
+    caption = await generatePromptCaption({ theme, prompt: sharedPrompt })
+  } else {
+    console.log('[pack] 调用 DeepSeek 生成文案...')
+    caption = await generateCaption({
+      theme,
+      count: data.items.length,
+      picked: picked.length,
+      highlights,
+      note,
+    })
+  }
 
   const postDir = join(POSTS_ROOT, `${date}_${theme}`)
   mkdirSync(postDir, { recursive: true })
@@ -125,10 +142,8 @@ async function main(): Promise<void> {
     copied.push(name)
   })
 
-  // caption.md
-  const tagLine = caption.tags.map((t) => `#${t}`).join(' ')
-  const captionMd = (caption.title ? `# ${caption.title}\n\n` : '') + `${caption.body}\n\n${tagLine}\n`
-  writeFileSync(join(postDir, 'caption.md'), captionMd, 'utf-8')
+  // caption.md（中英双版）
+  writeFileSync(join(postDir, 'caption.md'), captionToMarkdown(caption), 'utf-8')
 
   // 过程卡：每张图的视觉参数 + prompt
   let card = `# 过程卡 · ${date} · ${theme}\n\n${label} ${picked.length}/${data.items.length}\n\n`

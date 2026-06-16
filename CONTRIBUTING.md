@@ -30,8 +30,9 @@ CI 会跑以上检查，请保证本地通过。
 
 ## 改 Prompt / 采样规则
 
-- Planner / Builder 的 system prompt 在 [src/prompts/](src/prompts/)，可直接迭代（运行时每次读取，无需重启）。
-- 人脸采样的属性池与权重在 [src/face/pools.ts](src/face/pools.ts)（纯数据），采样逻辑在 [blueprint.ts](src/face/blueprint.ts)。改了采样逻辑请补/更新 [test/blueprint.test.ts](test/blueprint.test.ts)。
+- 各环节 system prompt 在 [src/prompts/](src/prompts/)（planner / builder / coherence / caption / caption-title），可直接迭代（运行时每次读取，无需重启）。
+- 主题视觉骨架的允许池与权重在 [src/diversity/themes.ts](src/diversity/themes.ts)，采样逻辑在 [skeleton.ts](src/diversity/skeleton.ts)。
+- 人脸采样的属性池与权重在 [src/face/pools.ts](src/face/pools.ts)（纯数据），采样逻辑在 [blueprint.ts](src/face/blueprint.ts)。改了采样逻辑请补/更新 [test/](test/) 下对应测试（`blueprint.test.ts` / `changes.test.ts`）。
 
 ## 范围约定
 

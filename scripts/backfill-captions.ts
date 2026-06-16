@@ -10,7 +10,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { writeFileSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
-import { generateCaption } from '../src/caption.js'
+import { generateCaption, captionToMarkdown } from '../src/caption.js'
 
 const OUTPUTS_ROOT = resolve(process.cwd(), 'outputs')
 const POSTS_ROOT = resolve(process.cwd(), 'posts')
@@ -124,9 +124,7 @@ async function main(): Promise<void> {
           join(postDir, `${String(idx + 1).padStart(2, '0')}${idx === 0 ? '_cover' : ''}${ext}`),
         )
       })
-      const tagLine = caption.tags.map((t) => `#${t}`).join(' ')
-      const md = (caption.title ? `# ${caption.title}\n\n` : '') + `${caption.body}\n\n${tagLine}\n`
-      writeFileSync(join(postDir, 'caption.md'), md, 'utf-8')
+      writeFileSync(join(postDir, 'caption.md'), captionToMarkdown(caption), 'utf-8')
       console.log(`    → ${postDir}`)
     }
   }

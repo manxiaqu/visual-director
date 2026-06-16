@@ -8,7 +8,7 @@
 
 ## 效果示例
 
-输入 `高知女性`，一次生成 9 种不同职业身份：
+输入 `高知女性`，一次生成一组气质 / 风格各异的人物写真（差异来自主题视觉骨架 + 规则化人脸采样）：
 
 <table>
   <tr>
@@ -29,11 +29,10 @@
 </table>
 
 ```bash
-npm start "高知女性" -- --batch 9 --image \
-  --occupations "大学教师,科研人员,医生,律师,出版社编辑,建筑师,心理咨询师,策展人,品牌总监"
+npm start "高知女性" -- --batch 9 --image
 ```
 
-换个题材，输入 `御姐`，同样产出一组不同身份：
+换个题材，输入 `御姐`，同样产出一组气质各异的人物：
 
 <table>
   <tr>
@@ -62,20 +61,22 @@ npm start "高知女性" -- --batch 9 --image \
 
 ```
 一句话
-  → Planner（DeepSeek）       规划身份/职业/年龄/服装配色/场景/风格
-  → Face Blueprint 采样器（纯规则）   按 seed 采样脸型/眼型/眉型/肤色/特征 + 发型
+  → Planner（DeepSeek）            解析意图：主题 / 用户钉死维度(pinned) / 碎信息(extras)
+  → 主题视觉骨架采样器（纯规则）    按主题允许池 + seed 采样 场景/光线/姿势/服装配色…
+  → Face Blueprint 采样器（纯规则）  按 seed 采样脸型/眼型/眉型/肤色/特征 + 发型
+  → 自洽审查 Coherence（DeepSeek）  检测内部打架并最小修正
   → Prompt Builder（DeepSeek，Face First）   写成 ≤150 字中文 Prompt，脸在最前
-  → 即梦 Seedream（fal.ai）    出图
+  → 即梦 Seedream（fal.ai）          出图
   → 本地保存
 ```
 
-`--batch N` 时每张**完整重走一遍**（重新规划 → 采样 → 出图），得到同主题下 N 个不同的人。差异化来自：职业子类型 + 年龄 + 服装配色 + 五维人脸采样 + 发型 + Face First。
+`--batch N` 时 Planner 整批只解析一次，之后**每张按 `seed` 重新采样视觉骨架 + 人脸**再出图，得到同主题下 N 个不同的人。差异化来自：主题视觉骨架（场景 / 光线 / 姿势 / 服装配色）+ 年龄 + 五维人脸采样 + 发型 + Face First。
 
 ## 技术栈
 
 - **TypeScript / Node.js**（ESM）
-- **DeepSeek**（`deepseek-chat` / V3，兼容 OpenAI SDK，负责 Planner 与 Prompt Builder）
-- **规则化人脸采样**（纯逻辑、可复现，负责去同质化）
+- **DeepSeek**（`deepseek-chat` / V3，兼容 OpenAI SDK，负责 Planner / 自洽审查 / Prompt Builder 等文本环节）
+- **主题视觉骨架引擎 + 规则化人脸采样**（纯逻辑、可复现，负责去同质化、保证组内多样）
 - **字节即梦 Seedream**（经 [fal.ai](https://fal.ai) 接入，负责文生图）
 
 ## 安装
@@ -107,11 +108,8 @@ npm start "高知女性"
 # 完整流程，调用即梦出图
 npm start "高知女性" -- --image
 
-# 一组不同身份（每张重新规划），并出图
+# 一组气质各异的人物（Planner 解析一次，每张按 seed 重新采样），并出图
 npm start "高知女性" -- --batch 9 --image
-
-# 指定一组职业，逐张强制铺开（README 那组就是这么跑的）
-npm start "高知女性" -- --batch 9 --image --occupations "大学教师,医生,律师,建筑师,编辑,策展人,品牌总监,科研人员,心理咨询师"
 
 # 打印每次大模型调用的完整输入/输出
 npm start "高知女性" -- --debug
@@ -121,8 +119,7 @@ npm start "高知女性" -- --debug
 | --- | --- |
 | `--image` | 调用即梦出图（不加则只产 Prompt，不花钱） |
 | `--seed <n>` | 人脸采样基准 seed（可复现）；不传则随机 |
-| `--batch <N>` | 生成 N 个，每张完整重走一遍，得同主题下 N 个不同的人 |
-| `--occupations "a,b,c"` | batch 时逐张强制指定职业，铺开身份差异 |
+| `--batch <N>` | 生成 N 个，Planner 解析一次、每张按 seed 重新采样，得同主题下 N 个不同的人 |
 | `--debug` | 打印 Planner / Builder 的完整 I/O（等价 `VD_DEBUG=1`） |
 
 非人物输入（如 `一只猫`）会返回「暂不支持」。
@@ -158,20 +155,28 @@ npm start "高知女性" -- --debug
 
 ```text
 src/
-  main.ts               # CLI 入口（--image / --seed / --batch / --occupations / --debug）
-  planner.ts            # DeepSeek → 核心 Plan（身份/职业/年龄/配色/场景…）
+  main.ts               # CLI 入口（--image / --seed / --batch / --debug）
+  planner.ts            # DeepSeek → 解析意图：主题 / pinned / extras
+  pipeline.ts           # 单张编排：采样 → 自洽 → Builder → 出图 → 落地
+  diversity/
+    themes.ts           # 美学主题总表（主题 → 各视觉维度的允许池 + 权重）
+    skeleton.ts         # 视觉骨架采样器（主题驱动，池内选 + history 防撞）
+    pools.ts / history.ts / constraints.ts   # 维度池 / 跨次去重历史 / archetype 约束
   face/
     pools.ts            # 人脸/发型属性池 + 权重 + 约束 + archetype 偏置（纯数据）
     blueprint.ts        # 规则采样器：条件门控 + 互斥 + 反塌缩 + archetype 加权
     rng.ts              # 可复现随机源（mulberry32）+ 加权采样
   prompt-builder.ts     # 方案 → ≤150 字中文 Prompt（Face First，禁美化覆盖）
+  coherence.ts          # 采样后自洽审查：检测内部打架并最小修正
   image-generator.ts    # Prompt → 即梦（fal.ai）→ 图片（含瞬时错误重试）
+  caption.ts            # 一组图 → 配文（中英双版）
   storage.ts            # 本地保存
   config.ts / types.ts / debug.ts
   prompts/
-    planner.system.md   # Planner system prompt
-    builder.system.md   # Prompt Builder system prompt
-test/blueprint.test.ts  # 采样器单元测试
+    planner.system.md / builder.system.md / coherence.system.md
+    caption.system.md / caption-title.system.md   # 各环节 system prompt
+scripts/                # 批量与产线脚本（每个脚本头部有用法注释）
+test/                   # 单元测试（blueprint.test.ts / changes.test.ts，无需 API key）
 docs/                   # 设计文档 + samples 样图
 ```
 
